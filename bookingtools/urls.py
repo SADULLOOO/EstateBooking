@@ -13,7 +13,7 @@ urlpatterns = [
     path("buildings/<int:pk>/", views.BuildingDetailView.as_view(), name="building-detail"),
 
     # --- Комнаты ---
-    path("rooms/", views.RoomListView.as_view(), name="room-list"),              # get_rooms
+    path("rooms/", views.RoomListView.as_view(), name="room-list"),              
     path("rooms/<int:pk>/", views.RoomDetailView.as_view(), name="room-detail"),
 
     # --- Транспорт ---
@@ -22,11 +22,14 @@ urlpatterns = [
     path("vehicles/<int:pk>/", views.VehicleDetailView.as_view(), name="vehicle-detail"),
 
     # --- Бронирование ---
-    path("bookings/create/", views.CreateBookingView.as_view(), name="create-booking"),   # create_booking
-    path("bookings/my/", views.MyBookingsView.as_view(), name="my-bookings"),              # my_bookings
+    path("bookings/create/", views.CreateBookingView.as_view(), name="create-booking"),  
+    path("bookings/my/", views.MyBookingsView.as_view(), name="my-bookings"),             
     path("bookings/<int:pk>/cancel/", views.CancelBookingView.as_view(), name="cancel-booking"),
 
     # --- Отзывы ---
     path("reviews/create/", views.CreateReviewView.as_view(), name="create-review"),
     path("reviews/", views.ReviewListView.as_view(), name="review-list"),
+
+    # --- AI Помощник ---
+    path("ai/recommendation/", views.AIRecommendationView.as_view(), name="ai-recommendation"),
 ]

@@ -4,6 +4,12 @@ from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from groq import Groq
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+groq_api = os.getenv("GROQ_API_KEY")
 
 from .models import Building, Room, VehicleCategory, Vehicle, Booking, Review
 from .permissions import IsOwnerOrReadOnly, IsAdminOrReadOnly
@@ -16,37 +22,24 @@ from .serializers import (
     ReviewSerializer,
 )
 
-
-# ---------------------------------------------------------------------------
-# ЗДАНИЯ / КОМНАТЫ — доступны без авторизации (просмотр)
-# ---------------------------------------------------------------------------
+from dotenv import load_dotenv
+import os
+load_dotenv()
+groq_api = os.getenv("GROQ_API_KEY")
 
 class BuildingListView(generics.ListCreateAPIView):
-    """
-    Список всех зданий — смотреть может любой.
-    Создавать новое здание — только админ (is_staff).
-    """
     queryset = Building.objects.all().order_by("name")
     serializer_class = BuildingSerializer
     permission_classes = [IsAdminOrReadOnly]
 
 
 class BuildingDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """
-    Детали здания — смотреть может любой.
-    Менять / удалять — только админ.
-    """
     queryset = Building.objects.all()
     serializer_class = BuildingSerializer
     permission_classes = [IsAdminOrReadOnly]
 
 
 class RoomListView(generics.ListCreateAPIView):
-    """
-    get_rooms — список всех комнат, смотреть может любой.
-    Создавать новую комнату — только админ.
-    Фильтр: /api/rooms/?building=1
-    """
     serializer_class = RoomSerializer
     permission_classes = [IsAdminOrReadOnly]
 
@@ -59,30 +52,20 @@ class RoomListView(generics.ListCreateAPIView):
 
 
 class RoomDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Смотреть может любой, менять/удалять — только админ."""
     queryset = Room.objects.filter(is_active=True)
     serializer_class = RoomSerializer
     permission_classes = [IsAdminOrReadOnly]
 
 
-# ---------------------------------------------------------------------------
-# ТРАНСПОРТ — тоже доступен без авторизации (просмотр)
-# ---------------------------------------------------------------------------
+
 
 class VehicleCategoryListView(generics.ListCreateAPIView):
-    """Смотреть может любой, создавать новую категорию транспорта — только админ."""
     queryset = VehicleCategory.objects.all().order_by("level")
     serializer_class = VehicleCategorySerializer
     permission_classes = [IsAdminOrReadOnly]
 
 
 class VehicleListView(generics.ListCreateAPIView):
-    """
-    Список транспорта. Смотреть может любой, создавать — только админ.
-    Фильтры:
-    /api/vehicles/?category=2  (по id категории)
-    /api/vehicles/?level=2     (по уровню комфорта)
-    """
     serializer_class = VehicleSerializer
     permission_classes = [IsAdminOrReadOnly]
 
@@ -98,21 +81,14 @@ class VehicleListView(generics.ListCreateAPIView):
 
 
 class VehicleDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Смотреть может любой, менять/удалять — только админ."""
     queryset = Vehicle.objects.filter(is_active=True)
     serializer_class = VehicleSerializer
     permission_classes = [IsAdminOrReadOnly]
 
 
-# ---------------------------------------------------------------------------
-# БРОНИРОВАНИЕ
-# ---------------------------------------------------------------------------
+
 
 class CreateBookingView(APIView):
-    """
-    create_booking — создать бронь на комнату ИЛИ на транспорт.
-    Body: { "object_type": "room", "object_id": 1, "start_time": "...", "end_time": "..." }
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -127,7 +103,6 @@ class CreateBookingView(APIView):
         model_map = {"room": Room, "vehicle": Vehicle}
         content_type = ContentType.objects.get_for_model(model_map[object_type])
 
-        # Проверка пересечения по времени с уже активными бронями
         overlapping = Booking.objects.filter(
             content_type=content_type,
             object_id=object_id,
@@ -143,6 +118,11 @@ class CreateBookingView(APIView):
             )
 
         booking = serializer.save(user=request.user)
+        
+        booked_object = model_map[object_type].objects.get(id=object_id)
+        booked_object.booking_status = "booked"
+        booked_object.save(update_fields=["booking_status"])
+        
         return Response(
             {
                 "message": "Успешно забронировано!",
@@ -153,7 +133,6 @@ class CreateBookingView(APIView):
 
 
 class MyBookingsView(generics.ListAPIView):
-    """my_bookings — список бронирований текущего пользователя."""
     serializer_class = BookingSerializer
     permission_classes = [IsAuthenticated]
 
@@ -162,7 +141,6 @@ class MyBookingsView(generics.ListAPIView):
 
 
 class CancelBookingView(APIView):
-    """Отмена своей брони."""
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
 
     def post(self, request, pk):
@@ -175,6 +153,11 @@ class CancelBookingView(APIView):
 
         booking.status = "cancelled"
         booking.save(update_fields=["status"])
+        
+        booked_object = booking.booked_object
+        booked_object.booking_status = "available"
+        booked_object.save(update_fields=["booking_status"])
+        
         return Response({"message": "Бронь отменена"}, status=status.HTTP_200_OK)
 
     def check_object_permission(self, request, obj):
@@ -183,12 +166,8 @@ class CancelBookingView(APIView):
             raise PermissionDenied("Это не твоя бронь.")
 
 
-# ---------------------------------------------------------------------------
-# ОТЗЫВЫ
-# ---------------------------------------------------------------------------
 
 class CreateReviewView(APIView):
-    """Оставить отзыв на здание / комнату / транспорт."""
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -199,10 +178,7 @@ class CreateReviewView(APIView):
 
 
 class ReviewListView(APIView):
-    """
-    Список отзывов на конкретный объект.
-    /api/reviews/?object_type=room&object_id=3
-    """
+
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -217,3 +193,97 @@ class ReviewListView(APIView):
         content_type = ContentType.objects.get_for_model(model_class)
         reviews = Review.objects.filter(content_type=content_type, object_id=object_id).order_by("-created_at")
         return Response(ReviewSerializer(reviews, many=True).data)
+
+
+
+class AIRecommendationView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user_query = request.data.get("query", "").strip()
+        
+        if not user_query:
+            return Response({"error": "Введите вопрос"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            buildings = Building.objects.all()
+            rooms = Room.objects.filter(is_active=True).select_related('building', 'category')
+            vehicles = Vehicle.objects.filter(is_active=True).select_related('category')
+            
+            buildings_info = []
+            for building in buildings:
+                buildings_info.append({
+                    'name': building.name,
+                    'address': building.address,
+                    'city': building.city,
+                    'description': building.description,
+                    'rooms_count': building.rooms.count()
+                })
+            
+            rooms_info = []
+            for room in rooms:
+                rooms_info.append({
+                    'name': room.name,
+                    'building': room.building.name,
+                    'floor': room.floor,
+                    'capacity': room.capacity,
+                    'has_projector': room.has_projector,
+                    'booking_status': room.booking_status
+                })
+            
+            vehicles_info = []
+            for vehicle in vehicles:
+                vehicles_info.append({
+                    'name': vehicle.name,
+                    'category': vehicle.category.name,
+                    'capacity': vehicle.capacity,
+                    'price_per_hour': float(vehicle.price_per_hour),
+                    'plate_number': vehicle.plate_number,
+                    'booking_status': vehicle.booking_status
+                })
+
+            system_prompt = f"""
+You are EstateBooking AI assistant. 
+Help users choose the best rooms, buildings, and vehicles for rent based on their needs.
+
+AVAILABLE BUILDINGS:
+{buildings_info}
+
+AVAILABLE ROOMS:
+{rooms_info}
+
+AVAILABLE VEHICLES:
+{vehicles_info}
+
+Rules:
+1. Speak friendly and explain simply in Russian.
+2. Always use emojis elegantly.
+3. Recommend ONLY from the available rooms, buildings, and vehicles listed above.
+4. Consider booking status - only recommend available items.
+5. If user asks about capacity, price, or features, provide specific details.
+6. Help users choose based on their needs (meetings, events, transportation, etc.)
+"""
+
+            client = Groq(api_key=groq_api)
+            
+            response = client.chat.completions.create(
+                model="llama3-8b-8192",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_query}
+                ]
+            )
+            
+            ai_response = response.choices[0].message.content
+            
+            return Response({
+                "query": user_query,
+                "response": ai_response
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                "error": "⚠️ Извините, ИИ-помощник сейчас недоступен. Попробуйте позже.",
+                "details": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

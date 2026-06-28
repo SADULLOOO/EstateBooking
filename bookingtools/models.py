@@ -39,6 +39,12 @@ class Room(models.Model):
     model_3d_url = models.URLField(blank=True, null=True)
     photo = models.ImageField(upload_to="rooms/", blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    
+    STATUS_CHOICES = [
+        ("available", "Свободен"),
+        ("booked", "Забронирован"),
+    ]
+    booking_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="available")
 
     reviews = GenericRelation("Review")
 
@@ -70,6 +76,12 @@ class Vehicle(models.Model):
     model_3d_url = models.URLField(blank=True, null=True)
     photo = models.ImageField(upload_to="vehicles/", blank=True, null=True)
     is_active = models.BooleanField(default=True)
+    
+    STATUS_CHOICES = [
+        ("available", "Свободен"),
+        ("booked", "Забронирован"),
+    ]
+    booking_status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="available")
 
     reviews = GenericRelation("Review")
 

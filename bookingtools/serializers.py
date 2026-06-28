@@ -31,7 +31,7 @@ class RoomSerializer(serializers.ModelSerializer):
         fields = [
             "id", "building", "name", "category", "category_id",
             "floor", "capacity", "has_projector",
-            "model_3d_url", "photo", "is_active",
+            "model_3d_url", "photo", "is_active", "booking_status",
         ]
 
 
@@ -61,7 +61,7 @@ class VehicleSerializer(serializers.ModelSerializer):
         model = Vehicle
         fields = [
             "id", "category", "category_id", "name", "plate_number", "capacity",
-            "price_per_hour", "price_per_day", "model_3d_url", "photo", "is_active",
+            "price_per_hour", "price_per_day", "model_3d_url", "photo", "is_active", "booking_status",
         ]
 
 
