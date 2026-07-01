@@ -18,6 +18,7 @@ urlpatterns = [
 
     # --- Транспорт ---
     path("vehicle-categories/", views.VehicleCategoryListView.as_view(), name="vehicle-category-list"),
+    path("vehicle-categories/<int:pk>/", views.VehicleCategoryDetailView.as_view(), name="vehicle-category-detail"),
     path("vehicles/", views.VehicleListView.as_view(), name="vehicle-list"),
     path("vehicles/<int:pk>/", views.VehicleDetailView.as_view(), name="vehicle-detail"),
 
@@ -28,6 +29,8 @@ urlpatterns = [
 
     # --- Отзывы ---
     path("reviews/create/", views.CreateReviewView.as_view(), name="create-review"),
+    path("reviews/my/", views.MyReviewsView.as_view(), name="my-reviews"),
+    path("reviews/<int:pk>/", views.DeleteReviewView.as_view(), name="delete-review"),
     path("reviews/", views.ReviewListView.as_view(), name="review-list"),
 
     # --- AI Помощник ---

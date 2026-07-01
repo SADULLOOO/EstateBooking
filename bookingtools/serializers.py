@@ -45,6 +45,11 @@ class BuildingSerializer(serializers.ModelSerializer):
             "model_3d_url", "cover_image", "created_at", "rooms",
         ]
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['rooms_count'] = instance.rooms.filter(is_active=True).count()
+        return data
+
 class VehicleCategorySerializer(serializers.ModelSerializer):
     class Meta:
         model = VehicleCategory
@@ -69,22 +74,31 @@ class VehicleSerializer(serializers.ModelSerializer):
 
 class BookingSerializer(serializers.ModelSerializer):
 
-
     object_type = serializers.ChoiceField(choices=["room", "vehicle"], write_only=True)
     object_id = serializers.IntegerField(write_only=True)
 
     booked_object_repr = serializers.SerializerMethodField(read_only=True)
+    booked_object_type = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Booking
         fields = [
-            "id", "object_type", "object_id", "booked_object_repr",
+            "id", "object_type", "object_id",
+            "booked_object_repr", "booked_object_type",
             "start_time", "end_time", "status", "created_at",
         ]
         read_only_fields = ["id", "status", "created_at"]
 
     def get_booked_object_repr(self, obj):
         return str(obj.booked_object)
+
+    def get_booked_object_type(self, obj):
+        model_class = obj.content_type.model_class()
+        if model_class == Room:
+            return "room"
+        if model_class == Vehicle:
+            return "vehicle"
+        return None
 
     def validate(self, attrs):
         object_type = attrs.get("object_type")

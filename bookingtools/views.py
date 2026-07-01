@@ -65,6 +65,12 @@ class VehicleCategoryListView(generics.ListCreateAPIView):
     permission_classes = [IsAdminOrReadOnly]
 
 
+class VehicleCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = VehicleCategory.objects.all()
+    serializer_class = VehicleCategorySerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+
 class VehicleListView(generics.ListCreateAPIView):
     serializer_class = VehicleSerializer
     permission_classes = [IsAdminOrReadOnly]
@@ -177,6 +183,30 @@ class CreateReviewView(APIView):
         return Response(ReviewSerializer(review).data, status=status.HTTP_201_CREATED)
 
 
+class MyReviewsView(generics.ListAPIView):
+    serializer_class = ReviewSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Review.objects.filter(user=self.request.user).order_by("-created_at")
+
+
+class DeleteReviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        try:
+            review = Review.objects.get(pk=pk)
+        except Review.DoesNotExist:
+            return Response({"error": "Отзыв не найден"}, status=status.HTTP_404_NOT_FOUND)
+
+        if review.user != request.user and not request.user.is_superuser:
+            return Response({"error": "Это не твой отзыв"}, status=status.HTTP_403_FORBIDDEN)
+
+        review.delete()
+        return Response({"message": "Отзыв удалён"}, status=status.HTTP_200_OK)
+
+
 class ReviewListView(APIView):
 
     permission_classes = [AllowAny]
@@ -205,6 +235,13 @@ class AIRecommendationView(APIView):
         
         if not user_query:
             return Response({"error": "Введите вопрос"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check if Groq API key is configured
+        if not groq_api:
+            return Response({
+                "error": "AI недоступен - не настроен API ключ",
+                "response": "⚠️ AI-помощник временно недоступен. Попробуй позже или обратись к администратору."
+            }, status=status.HTTP_200_OK)
 
         try:
             buildings = Building.objects.all()
@@ -268,7 +305,7 @@ Rules:
             client = Groq(api_key=groq_api)
             
             response = client.chat.completions.create(
-                model="llama3-8b-8192",
+                model="llama-3.3-70b-versatile",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_query}
@@ -283,7 +320,12 @@ Rules:
             }, status=status.HTTP_200_OK)
             
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"AI Error: {str(e)}")
+            print(f"AI Traceback: {error_details}")
             return Response({
                 "error": "⚠️ Извините, ИИ-помощник сейчас недоступен. Попробуйте позже.",
-                "details": str(e)
+                "details": str(e),
+                "traceback": error_details
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
