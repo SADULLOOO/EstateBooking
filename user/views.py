@@ -5,6 +5,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import AllowAny
 
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 
 from .permissions import IsStaffOrSuperuser
 from .serializers import (
@@ -53,10 +54,10 @@ class LoginView(GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        phone_number = serializer.validated_data['phone_number']
+        identifier = serializer.validated_data['phone_number']
         password = serializer.validated_data['password']
 
-        user = User.objects.filter(phone_number=phone_number).first()
+        user = User.objects.filter(Q(phone_number=identifier) | Q(username=identifier)).first()
 
         if user is not None and user.check_password(password):
             if not user.is_active:

@@ -9,7 +9,7 @@ class User(AbstractUser):
         ('user', 'Kop6ap'),
     )
 
-    phone_number = models.CharField(max_length=15, unique=True) 
+    phone_number = models.CharField(max_length=15, unique=True, null=True, blank=True)
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='user')
     
     USERNAME_FIELD = 'phone_number'
