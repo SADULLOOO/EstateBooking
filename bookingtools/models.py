@@ -5,12 +5,19 @@ from django.contrib.contenttypes.models import ContentType
 
 
 class Building(models.Model):
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="owned_buildings",
+    )
+
     name = models.CharField(max_length=255)
     address = models.CharField(max_length=500)
     city = models.CharField(max_length=100, blank=True)
     description = models.TextField(blank=True)
 
-    model_3d_url = models.URLField(blank=True, null=True)
     cover_image = models.ImageField(upload_to="buildings/", blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -31,10 +38,12 @@ class Room(models.Model):
     building = models.ForeignKey(Building, on_delete=models.CASCADE, related_name="rooms")
     category = models.ForeignKey(RoomCategory, on_delete=models.SET_NULL, null=True, blank=True)
 
-    name = models.CharField(max_length=255)              
+    name = models.CharField(max_length=255)
     floor = models.PositiveIntegerField(default=1)
     capacity = models.PositiveIntegerField()
     has_projector = models.BooleanField(default=False)
+
+    price_per_night = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     model_3d_url = models.URLField(blank=True, null=True)
     photo = models.ImageField(upload_to="rooms/", blank=True, null=True)
@@ -64,16 +73,23 @@ class VehicleCategory(models.Model):
 
 
 class Vehicle(models.Model):
+    TRANSMISSION_CHOICES = [
+        ("manual", "Механика"),
+        ("automatic", "Автомат"),
+    ]
+
     category = models.ForeignKey(VehicleCategory, on_delete=models.CASCADE, related_name="vehicles")
 
-    name = models.CharField(max_length=255)             
+    name = models.CharField(max_length=255)
+    brand = models.CharField(max_length=100, blank=True, default="")
     plate_number = models.CharField(max_length=20, unique=True)
     capacity = models.PositiveIntegerField()
+    transmission = models.CharField(max_length=20, choices=TRANSMISSION_CHOICES, blank=True, default="")
+    location = models.CharField(max_length=255, blank=True, default="")
 
     price_per_hour = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     price_per_day = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
-    model_3d_url = models.URLField(blank=True, null=True)
     photo = models.ImageField(upload_to="vehicles/", blank=True, null=True)
     is_active = models.BooleanField(default=True)
     

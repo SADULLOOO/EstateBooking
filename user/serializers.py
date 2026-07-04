@@ -34,7 +34,7 @@ class LoginSerializer(serializers.Serializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'is_staff']
+        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'role', 'is_staff', 'date_joined']
 
 
 class ChangeRoleSerializer(serializers.Serializer):

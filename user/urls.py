@@ -5,6 +5,9 @@ from .views import (
     LoginView,
     LogoutView,
     UserProfileView,
+    UserListView,
+    UserDeleteView,
+    ChangeUserRoleView,
 )
 
 
@@ -14,4 +17,8 @@ urlpatterns = [
     path('logout/', LogoutView.as_view(), name='logout'),
     path('profile/', UserProfileView.as_view(), name='profile'),
 
+    # --- Admin: управление пользователями ---
+    path('users/', UserListView.as_view(), name='user-list'),
+    path('users/<int:pk>/', UserDeleteView.as_view(), name='user-delete'),
+    path('users/<int:pk>/change-role/', ChangeUserRoleView.as_view(), name='user-change-role'),
 ]

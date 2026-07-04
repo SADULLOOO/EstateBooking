@@ -6,11 +6,13 @@ from rest_framework.permissions import AllowAny
 
 from django.contrib.auth import get_user_model
 
+from .permissions import IsStaffOrSuperuser
 from .serializers import (
     RegisterSerializer,
     UserSerializer,
     LoginSerializer,
     ProfileSerializer,
+    ChangeRoleSerializer,
 )
 
 User = get_user_model()
@@ -113,3 +115,29 @@ class UserProfileView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user.profile
+
+
+class UserListView(generics.ListAPIView):
+    queryset = User.objects.all().order_by("-date_joined")
+    serializer_class = UserSerializer
+    permission_classes = [IsStaffOrSuperuser]
+
+
+class UserDeleteView(generics.DestroyAPIView):
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [IsStaffOrSuperuser]
+
+
+class ChangeUserRoleView(GenericAPIView):
+    queryset = User.objects.all()
+    serializer_class = ChangeRoleSerializer
+    permission_classes = [IsStaffOrSuperuser]
+
+    def post(self, request, pk):
+        user = self.get_object()
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user.role = serializer.validated_data["role"]
+        user.save(update_fields=["role"])
+        return Response(UserSerializer(user).data)

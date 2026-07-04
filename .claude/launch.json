@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "C:\\Users\\HP Laptop 15\\Desktop\\EstateBooking\\.venv\\Scripts\\python.exe",
+      "runtimeArgs": ["manage.py", "runserver", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "housingbook-frontend-dev",
+      "runtimeExecutable": "npm.cmd",
+      "runtimeArgs": ["--prefix", "C:\\Users\\HP Laptop 15\\Desktop\\housingbook-frontend", "run", "dev"],
+      "port": 5173
+    }
+  ]
+}

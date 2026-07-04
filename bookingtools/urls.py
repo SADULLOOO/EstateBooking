@@ -23,8 +23,9 @@ urlpatterns = [
     path("vehicles/<int:pk>/", views.VehicleDetailView.as_view(), name="vehicle-detail"),
 
     # --- Бронирование ---
-    path("bookings/create/", views.CreateBookingView.as_view(), name="create-booking"),  
-    path("bookings/my/", views.MyBookingsView.as_view(), name="my-bookings"),             
+    path("bookings/create/", views.CreateBookingView.as_view(), name="create-booking"),
+    path("bookings/my/", views.MyBookingsView.as_view(), name="my-bookings"),
+    path("bookings/all/", views.AllBookingsView.as_view(), name="all-bookings"),
     path("bookings/<int:pk>/cancel/", views.CancelBookingView.as_view(), name="cancel-booking"),
 
     # --- Отзывы ---

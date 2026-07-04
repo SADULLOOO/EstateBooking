@@ -1,3 +1,4 @@
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
@@ -10,6 +11,14 @@ from .models import (
     Booking,
     Review,
 )
+
+User = get_user_model()
+
+
+class BuildingOwnerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "username", "phone_number"]
 
 
 
@@ -30,19 +39,23 @@ class RoomSerializer(serializers.ModelSerializer):
         model = Room
         fields = [
             "id", "building", "name", "category", "category_id",
-            "floor", "capacity", "has_projector",
+            "floor", "capacity", "has_projector", "price_per_night",
             "model_3d_url", "photo", "is_active", "booking_status",
         ]
 
 
 class BuildingSerializer(serializers.ModelSerializer):
     rooms = RoomSerializer(many=True, read_only=True)
+    owner = BuildingOwnerSerializer(read_only=True)
+    average_rating = serializers.FloatField(read_only=True, allow_null=True)
+    reviews_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Building
         fields = [
-            "id", "name", "address", "city", "description",
-            "model_3d_url", "cover_image", "created_at", "rooms",
+            "id", "name", "address", "city", "description", "owner",
+            "cover_image", "created_at", "rooms",
+            "average_rating", "reviews_count",
         ]
 
     def to_representation(self, instance):
@@ -61,12 +74,16 @@ class VehicleSerializer(serializers.ModelSerializer):
     category_id = serializers.PrimaryKeyRelatedField(
         queryset=VehicleCategory.objects.all(), source="category", write_only=True
     )
+    average_rating = serializers.FloatField(read_only=True, allow_null=True)
+    reviews_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = Vehicle
         fields = [
-            "id", "category", "category_id", "name", "plate_number", "capacity",
-            "price_per_hour", "price_per_day", "model_3d_url", "photo", "is_active", "booking_status",
+            "id", "category", "category_id", "name", "brand", "plate_number", "capacity",
+            "transmission", "location",
+            "price_per_hour", "price_per_day", "photo", "is_active", "booking_status",
+            "average_rating", "reviews_count",
         ]
 
 

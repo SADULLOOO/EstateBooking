@@ -1,6 +1,15 @@
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from .models import ChatRoom, Message, Notification
+
+User = get_user_model()
+
+
+class ChatParticipantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ["id", "username"]
 
 
 class MessageSerializer(serializers.ModelSerializer):
@@ -14,10 +23,11 @@ class MessageSerializer(serializers.ModelSerializer):
 class ChatRoomListSerializer(serializers.ModelSerializer):
     last_message = serializers.SerializerMethodField()
     participant_names = serializers.SerializerMethodField()
+    participants = ChatParticipantSerializer(many=True, read_only=True)
 
     class Meta:
         model = ChatRoom
-        fields = ["id", "participant_names", "last_message", "created_at"]
+        fields = ["id", "participants", "participant_names", "last_message", "created_at"]
 
     def get_last_message(self, obj):
         msg = obj.messages.order_by("-created_at").first()
@@ -34,4 +44,7 @@ class NotificationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Notification
-        fields = ["id", "recipient", "sender", "sender_name", "message_preview", "chat_room_id", "is_read", "created_at"]
+        fields = [
+            "id", "recipient", "sender", "sender_name", "notification_type",
+            "message_preview", "chat_room_id", "is_read", "created_at",
+        ]

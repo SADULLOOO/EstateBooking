@@ -1,5 +1,8 @@
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
+from django.db.models import Avg, Count, Q
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -10,6 +13,9 @@ import os
 
 load_dotenv()
 groq_api = os.getenv("GROQ_API_KEY")
+
+from chat.models import Notification
+from user.permissions import IsStaffOrSuperuser
 
 from .models import Building, Room, VehicleCategory, Vehicle, Booking, Review
 from .permissions import IsOwnerOrReadOnly, IsAdminOrReadOnly
@@ -22,21 +28,64 @@ from .serializers import (
     ReviewSerializer,
 )
 
+
+def notify_staff_of_booking(actor, notification_type, message_preview):
+    User = get_user_model()
+    staff_users = (
+        User.objects.filter(is_staff=True) | User.objects.filter(is_superuser=True)
+    ).distinct().exclude(id=actor.id)
+
+    channel_layer = get_channel_layer()
+    for staff_user in staff_users:
+        notif = Notification.objects.create(
+            recipient=staff_user,
+            sender=actor,
+            notification_type=notification_type,
+            message_preview=message_preview[:255],
+        )
+        async_to_sync(channel_layer.group_send)(
+            f"notifications_{staff_user.id}",
+            {
+                "type": "send_notification",
+                "data": {
+                    "id": notif.id,
+                    "sender": actor.id,
+                    "sender_name": actor.username,
+                    "notification_type": notification_type,
+                    "message_preview": notif.message_preview,
+                    "chat_room_id": None,
+                    "is_read": False,
+                    "created_at": notif.created_at.isoformat(),
+                },
+            },
+        )
+
 from dotenv import load_dotenv
 import os
 load_dotenv()
 groq_api = os.getenv("GROQ_API_KEY")
 
+def annotate_building_rating(qs):
+    return qs.annotate(
+        average_rating=Avg("reviews__rating"),
+        reviews_count=Count("reviews", distinct=True),
+    )
+
+
 class BuildingListView(generics.ListCreateAPIView):
-    queryset = Building.objects.all().order_by("name")
     serializer_class = BuildingSerializer
     permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        return annotate_building_rating(Building.objects.all().order_by("name"))
 
 
 class BuildingDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Building.objects.all()
     serializer_class = BuildingSerializer
     permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        return annotate_building_rating(Building.objects.all())
 
 
 class RoomListView(generics.ListCreateAPIView):
@@ -71,6 +120,13 @@ class VehicleCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAdminOrReadOnly]
 
 
+def annotate_vehicle_rating(qs):
+    return qs.annotate(
+        average_rating=Avg("reviews__rating"),
+        reviews_count=Count("reviews", distinct=True),
+    )
+
+
 class VehicleListView(generics.ListCreateAPIView):
     serializer_class = VehicleSerializer
     permission_classes = [IsAdminOrReadOnly]
@@ -83,13 +139,15 @@ class VehicleListView(generics.ListCreateAPIView):
             qs = qs.filter(category_id=category_id)
         if level:
             qs = qs.filter(category__level=level)
-        return qs
+        return annotate_vehicle_rating(qs)
 
 
 class VehicleDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Vehicle.objects.filter(is_active=True)
     serializer_class = VehicleSerializer
     permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        return annotate_vehicle_rating(Vehicle.objects.filter(is_active=True))
 
 
 
@@ -124,11 +182,17 @@ class CreateBookingView(APIView):
             )
 
         booking = serializer.save(user=request.user)
-        
+
         booked_object = model_map[object_type].objects.get(id=object_id)
         booked_object.booking_status = "booked"
         booked_object.save(update_fields=["booking_status"])
-        
+
+        notify_staff_of_booking(
+            request.user,
+            "booking_created",
+            f"{request.user} забронировал(а): {booked_object}",
+        )
+
         return Response(
             {
                 "message": "Успешно забронировано!",
@@ -146,6 +210,16 @@ class MyBookingsView(generics.ListAPIView):
         return Booking.objects.filter(user=self.request.user).order_by("-start_time")
 
 
+class AllBookingsView(generics.ListAPIView):
+    """Все бронирования системы — только для staff/superuser (Admin Dashboard)."""
+
+    serializer_class = BookingSerializer
+    permission_classes = [IsStaffOrSuperuser]
+
+    def get_queryset(self):
+        return Booking.objects.all().order_by("-start_time")
+
+
 class CancelBookingView(APIView):
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
 
@@ -159,11 +233,17 @@ class CancelBookingView(APIView):
 
         booking.status = "cancelled"
         booking.save(update_fields=["status"])
-        
+
         booked_object = booking.booked_object
         booked_object.booking_status = "available"
         booked_object.save(update_fields=["booking_status"])
-        
+
+        notify_staff_of_booking(
+            request.user,
+            "booking_cancelled",
+            f"{request.user} отменил(а) бронь: {booked_object}",
+        )
+
         return Response({"message": "Бронь отменена"}, status=status.HTTP_200_OK)
 
     def check_object_permission(self, request, obj):
@@ -200,7 +280,7 @@ class DeleteReviewView(APIView):
         except Review.DoesNotExist:
             return Response({"error": "Отзыв не найден"}, status=status.HTTP_404_NOT_FOUND)
 
-        if review.user != request.user and not request.user.is_superuser:
+        if review.user != request.user and not (request.user.is_staff or request.user.is_superuser):
             return Response({"error": "Это не твой отзыв"}, status=status.HTTP_403_FORBIDDEN)
 
         review.delete()
@@ -214,6 +294,13 @@ class ReviewListView(APIView):
     def get(self, request):
         object_type = request.query_params.get("object_type")
         object_id = request.query_params.get("object_id")
+
+        if not object_type and not object_id:
+            user = request.user
+            if user.is_authenticated and (user.is_staff or user.is_superuser):
+                reviews = Review.objects.all().order_by("-created_at")
+                return Response(ReviewSerializer(reviews, many=True).data)
+            return Response({"error": "Укажи object_type и object_id"}, status=400)
 
         model_map = {"building": Building, "room": Room, "vehicle": Vehicle}
         model_class = model_map.get(object_type)
